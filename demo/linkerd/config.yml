@@ -1,0 +1,46 @@
+namers:
+- kind: io.l5d.consul
+  host: consul
+
+admin:
+  port: 9990
+  ip: 0.0.0.0
+
+routers:
+
+# This service proxies traffic to services looked up in consul
+- protocol: http
+  service:
+    kind: io.l5d.global
+    retries:
+      budget:
+        percentCanRetry: 2.0
+
+  label: http
+  identifier:
+    kind: io.l5d.path
+    segments: 1
+    consume: true
+  dtab: |
+    /svc => /#/io.l5d.consul/dc1;
+  servers:
+  - port: 4140
+    ip: 0.0.0.0
+
+
+# This service simply proxies all traffic from port 8080 to 0.0.0.0:9090
+- protocol: http
+  label: admin
+  dtab: |
+    /svc => /$/inet/0.0.0.0/9990;
+  servers:
+  - port: 8080
+    ip: 0.0.0.0
+
+telemetry:
+- kind: io.l5d.prometheus
+- kind: io.l5d.recentRequests
+  sampleRate: 1.0
+
+usage:
+  orgId: linkerd-demo

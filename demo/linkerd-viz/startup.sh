@@ -1,0 +1,77 @@
+#!/bin/sh
+#
+# Boot prometheus and grafana
+#
+# usage:
+# ./linkerd-viz [platform]
+#
+# platform can be one of: [consul, dcos, k8s]
+
+PLATFORM="${1:-dcos}"
+
+CONSUL_HOST"=${CONSUL_HOST:-localhost}"
+MARATHON_HOST"=${MARATHON_HOST:-mesos.marathon}"
+PUBLIC_PORT="${PUBLIC_PORT:-3000}"
+STATS_PORT="${STATS_PORT:-9191}"
+SCRAPE_INTERVAL="${SCRAPE_INTERVAL:-30s}"
+
+#
+# init grafana
+#
+
+grafana_ini=$(cat <<EOF
+[auth.anonymous]
+enabled = true
+org_role = Editor
+
+[dashboards.json]
+enabled = true
+path = /etc/grafana/dashboards
+
+[server]
+http_port = $PUBLIC_PORT
+EOF
+)
+
+printf "%s\n" "$grafana_ini" > /etc/grafana/grafana.ini
+
+/run.sh &
+
+prometheus_data_source=$(cat <<EOF
+{
+  "access": "proxy",
+  "isDefault": true,
+  "jsonData": {"timeInterval": "$SCRAPE_INTERVAL"},
+  "name": "prometheus",
+  "type": "prometheus",
+  "url": "http://localhost:$STATS_PORT"
+}
+EOF
+)
+
+until $(curl -sfo /dev/null http://admin:admin@localhost:$PUBLIC_PORT/api/datasources); do
+  # wait for grafana to boot
+  sleep 1
+done
+curl -vX POST -d "${prometheus_data_source}" -H "Content-Type: application/json" http://admin:admin@localhost:$PUBLIC_PORT/api/datasources
+curl -vX PUT -d"{\"theme\": \"dark\"}" -H "Content-Type: application/json" http://admin:admin@localhost:$PUBLIC_PORT/api/org/preferences
+
+#
+# init prometheus, exec as pid 1
+#
+
+# modify prometheus config based on env vars
+PROMETHEUS_CONF=/etc/prometheus/prometheus-$PLATFORM.yml
+
+sed -i"" "s@- server:   'localhost:8500'@- server:   '$CONSUL_HOST:8500'@" $PROMETHEUS_CONF
+sed -i"" "s@- 'http://marathon.mesos:8080'@- 'http://$MARATHON_HOST:8080'@" $PROMETHEUS_CONF
+sed -i"" "s@scrape_interval:.*@scrape_interval: $SCRAPE_INTERVAL@" $PROMETHEUS_CONF
+sed -i"" "s@evaluation_interval:.*@evaluation_interval: $SCRAPE_INTERVAL@" $PROMETHEUS_CONF
+
+exec /bin/prometheus \
+  -config.file=$PROMETHEUS_CONF \
+  -storage.local.path=/prometheus \
+  -web.console.libraries=/etc/prometheus/console_libraries \
+  -web.console.templates=/etc/prometheus/consoles \
+  -web.listen-address=:$STATS_PORT \
+  -log.level=debug

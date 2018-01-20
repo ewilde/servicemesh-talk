@@ -1,0 +1,55 @@
+version: '3'
+services:
+
+  consul:
+    image: consul:1.0.2
+    ports:
+      - 8500:8500
+
+  consul-registrator:
+    image: gliderlabs/registrator:v7
+    command: ['-internal', 'consul://consul:8500']
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock
+    depends_on:
+      - consul
+
+  linkerd:
+    image: buoyantio/linkerd:1.3.5
+    depends_on:
+      - consul
+      - consul-registrator
+    volumes:
+      - ./linkerd/config.yml:/config.yml
+    command: /config.yml
+    ports:
+      - 8080:8080
+      - 4140:4140
+
+  linkerd-viz:
+    build: ./linkerd-viz
+    #image: buoyantio/linkerd-viz:0.1.7
+    command: ['consul']
+    depends_on:
+      - linkerd
+      - consul
+      - consul-registrator
+    ports:
+      - 3000:3000
+      - 9191:9191
+    environment:
+      - CONSUL_HOST=consul
+    volumes:
+      - ./linkerd-viz/config.yml:/etc/prometheus/prometheus-consul.yml:ro
+
+  service-a:
+    image: hashicorp/http-echo:0.2.3
+    depends_on:
+      - linkerd
+    command: -listen ":80" -text "Hello from service A"
+    ports:
+      - 80
+    environment:
+      - SERVICE_80_NAME=service-a
+      - SERVICE_5678_IGNORE=true
+
