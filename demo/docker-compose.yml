@@ -14,6 +14,26 @@ services:
     depends_on:
       - consul
 
+  slow_cooker-a:
+    image: buoyantio/slow_cooker:1.0.1
+    entrypoint: /bin/sh
+    command: >
+      -c 'sleep 15 && export SERVICE_TAGS=foo  && slow_cooker -qps 20 -concurrency 15 -interval 5s -totalRequests 100000000 http://linkerd:4140/service-a'
+    depends_on:
+      - service-a
+    environment:
+      - SERVICE_NAME=service-slow
+    ports:
+      - 80
+
+  slow_cooker-b:
+    image: buoyantio/slow_cooker:1.0.1
+    entrypoint: /bin/sh
+    command: >
+      -c 'sleep 15 && slow_cooker -qps 20 -concurrency 15 -interval 5s -totalRequests 100000000 http://linkerd:4140/service-b'
+    depends_on:
+      - service-b
+
   linkerd:
     image: buoyantio/linkerd:1.3.5
     depends_on:
@@ -23,12 +43,12 @@ services:
       - ./linkerd/config.yml:/config.yml
     command: /config.yml
     ports:
-      - 8080:8080
       - 4140:4140
+      - 9990:9990
 
   linkerd-viz:
     build: ./linkerd-viz
-    #image: buoyantio/linkerd-viz:0.1.7
+    image: buoyantio/linkerd-viz:0.1.7
     command: ['consul']
     depends_on:
       - linkerd
@@ -51,5 +71,16 @@ services:
       - 80
     environment:
       - SERVICE_80_NAME=service-a
+      - SERVICE_5678_IGNORE=true
+
+  service-b:
+    image: hashicorp/http-echo:0.2.3
+    depends_on:
+      - linkerd
+    command: -listen ":80" -text "Hello from service B"
+    ports:
+      - 80
+    environment:
+      - SERVICE_80_NAME=service-b
       - SERVICE_5678_IGNORE=true
 
