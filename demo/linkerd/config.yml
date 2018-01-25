@@ -1,6 +1,7 @@
 namers:
 - kind: io.l5d.consul
   host: consul
+  includeTag: false
 
 admin:
   port: 9990
@@ -12,6 +13,8 @@ routers:
 - protocol: http
   service:
     kind: io.l5d.global
+    responseClassifier:
+      kind: io.l5d.http.retryableIdempotent5XX
     retries:
       budget:
         percentCanRetry: 2.0

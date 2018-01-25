@@ -14,19 +14,15 @@ services:
     depends_on:
       - consul
 
-  slow_cooker-a:
+  service-a-b:
     image: buoyantio/slow_cooker:1.0.1
     entrypoint: /bin/sh
     command: >
       -c 'sleep 15 && export SERVICE_TAGS=foo  && slow_cooker -qps 20 -concurrency 15 -interval 5s -totalRequests 100000000 http://linkerd:4140/service-a'
     depends_on:
-      - service-a
-    environment:
-      - SERVICE_NAME=service-slow
-    ports:
-      - 80
+      - service-b
 
-  slow_cooker-b:
+  service-a-c:
     image: buoyantio/slow_cooker:1.0.1
     entrypoint: /bin/sh
     command: >
@@ -62,25 +58,22 @@ services:
     volumes:
       - ./linkerd-viz/config.yml:/etc/prometheus/prometheus-consul.yml:ro
 
-  service-a:
-    image: hashicorp/http-echo:0.2.3
-    depends_on:
-      - linkerd
-    command: -listen ":80" -text "Hello from service A"
-    ports:
-      - 80
-    environment:
-      - SERVICE_80_NAME=service-a
-      - SERVICE_5678_IGNORE=true
-
   service-b:
-    image: hashicorp/http-echo:0.2.3
+    build: ./echo
     depends_on:
       - linkerd
-    command: -listen ":80" -text "Hello from service B"
+    command: -success-rate=0.6
     ports:
-      - 80
+      - 8501
     environment:
-      - SERVICE_80_NAME=service-b
-      - SERVICE_5678_IGNORE=true
+      - SERVICE_8501_NAME=service-a
 
+  service-c:
+    build: ./echo
+    depends_on:
+      - linkerd
+    command: -success-rate=0.9
+    ports:
+      - 8501
+    environment:
+      - SERVICE_8501_NAME=service-b
