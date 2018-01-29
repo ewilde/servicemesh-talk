@@ -5,6 +5,5 @@ The role of a service mesh in a microservices architecture
 To run the demo:
 
 * Make sure you have [docker installed](https://docs.docker.com/engine/installation/)
-* Mac and linux: 
-* `cd demo`
+* Mac and linux open a command prompt in this directory and run: 
 * `make`
